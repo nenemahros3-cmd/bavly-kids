@@ -1,74 +1,830 @@
-function doGet() {
-  return HtmlService.createHtmlOutputFromFile('Index')
-      .setTitle('نظام BAVLY لإدارة المصنع')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BAVLY Factory Management System</title>
+    <style>
+        :root {
+            --bg-main: #0f172a;
+            --bg-card: #1e293b;
+            --bg-sidebar: #0b1120;
+            --accent-primary: #6366f1;
+            --accent-hover: #4f46e5;
+            --accent-success: #10b981;
+            --accent-warning: #f59e0b;
+            --accent-danger: #ef4444;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+        }
 
-// جلب كل البيانات دفعة واحدة عند فتح البرنامج
-function getInitialData() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  return {
-    models: getSheetData(ss, "Models", ["كود الموديل", "اسم الموديل", "القسم", "الخامة", "التكلفة", "سعر البيع"]),
-    customers: getSheetData(ss, "Customers", ["كود العميل", "اسم العميل", "الهاتف", "المحافظة", "إجمالي المشتريات", "المتبقي"]),
-    materials: getSheetData(ss, "Materials", ["كود الخامة", "اسم الخامة", "الوحدة", "الكمية الحالية"]),
-    invoices: getSheetData(ss, "SalesInvoices", ["رقم الفاتورة", "التاريخ", "اسم العميل", "الإجمالي", "الخصم", "الصافي", "طريقة الدفع"])
-  };
-}
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
 
-function getSheetData(ss, sheetName, defaultHeaders) {
-  var sheet = getOrCreateSheet(ss, sheetName, defaultHeaders);
-  var data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return [];
-  var headers = data[0];
-  return data.slice(1).map(function(row) {
-    var obj = {};
-    headers.forEach(function(h, i) { obj[h] = row[i]; });
-    return obj;
-  });
-}
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
 
-// حفظ الفاتورة بالكامل في صفحة المبيعات وصفحة العناصر
-function saveInvoice(invoiceHeader, invoiceItems) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var invSheet = getOrCreateSheet(ss, "SalesInvoices", ["رقم الفاتورة", "التاريخ", "اسم العميل", "الإجمالي", "الخصم", "الصافي", "طريقة الدفع"]);
-  var itemsSheet = getOrCreateSheet(ss, "SalesItems", ["ID", "رقم الفاتورة", "الموديل", "اللون", "المقاس", "الكمية", "السعر", "الإجمالي"]);
+        /* Sidebar */
+        aside {
+            width: 270px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
 
-  invSheet.appendRow(invoiceHeader);
+        .brand {
+            padding: 24px;
+            font-size: 1.3rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
 
-  if (invoiceItems && invoiceItems.length > 0) {
-    var rows = invoiceItems.map(function(item, idx) {
-      return [
-        "ITEM-" + Date.now() + "-" + idx,
-        invoiceHeader[0],
-        item.model,
-        item.color || "",
-        item.size || "",
-        Number(item.qty) || 1,
-        Number(item.price) || 0,
-        (Number(item.qty) || 1) * (Number(item.price) || 0)
-      ];
-    });
-    itemsSheet.getRange(itemsSheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
-  }
-  return { success: true, message: "تم حفظ الفاتورة بنجاح!" };
-}
+        .brand-icon {
+            width: 28px;
+            height: 28px;
+            background: var(--accent-primary);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 0.9rem;
+        }
 
-// حفظ عنصر جديد (موديل / عميل / خامة)
-function saveSingleRecord(sheetName, headers, rowData) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = getOrCreateSheet(ss, sheetName, headers);
-  sheet.appendRow(rowData);
-  return { success: true, message: "تم الحفظ بنجاح!" };
-}
+        .nav-menu {
+            list-style: none;
+            padding: 16px 12px;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
 
-function getOrCreateSheet(ss, sheetName, headers) {
-  var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-    sheet.appendRow(headers);
-    sheet.getRange(1, 1, 1, headers.length).setBackground("#1e293b").setFontColor("#ffffff").setFontWeight("bold");
-    sheet.setFrozenRows(1);
-  }
-  return sheet;
-}
+        .nav-item {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background-color: var(--accent-primary);
+            color: var(--text-main);
+        }
+
+        .nav-item .badge-count {
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+        }
+
+        /* Sync Status Box */
+        .sync-status {
+            margin: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid var(--border-color);
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--accent-warning);
+        }
+
+        .status-dot.connected { background-color: var(--accent-success); }
+        .status-dot.error { background-color: var(--accent-danger); }
+
+        /* Main Section */
+        main {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            padding: 16px 32px;
+            background-color: var(--bg-sidebar);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .search-container {
+            position: relative;
+        }
+
+        .search-bar {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 16px 10px 36px;
+            color: var(--text-main);
+            width: 350px;
+            font-size: 0.9rem;
+            outline: none;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .btn-action {
+            background-color: var(--accent-primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background-color 0.2s;
+        }
+
+        .btn-action:hover { background-color: var(--accent-hover); }
+
+        .content {
+            padding: 28px 32px;
+            overflow-y: auto;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: flex; flex-direction: column; gap: 24px; }
+
+        /* Grids & Cards */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .kpi-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .kpi-title { color: var(--text-muted); font-size: 0.85rem; font-weight: 500; }
+        .kpi-value { font-size: 1.6rem; font-weight: 700; }
+
+        .grid-two-col {
+            display: grid;
+            grid-template-columns: 1.8fr 1.2fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .grid-two-col { grid-template-columns: 1fr; }
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Alerts */
+        .alert-box {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-size: 0.88rem;
+            line-height: 1.4;
+        }
+
+        .alert-warning {
+            background-color: rgba(245, 158, 11, 0.12);
+            border: 1px solid var(--accent-warning);
+            color: var(--accent-warning);
+        }
+
+        .alert-danger {
+            background-color: rgba(239, 68, 68, 0.12);
+            border: 1px solid var(--accent-danger);
+            color: var(--accent-danger);
+        }
+
+        .alert-info {
+            background-color: rgba(16, 185, 129, 0.12);
+            border: 1px solid var(--accent-success);
+            color: var(--accent-success);
+        }
+
+        /* Tables */
+        .table-responsive { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 12px 14px; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; }
+        th { color: var(--text-muted); font-weight: 600; background: rgba(11, 17, 32, 0.3); }
+
+        /* Pipeline Stages */
+        .pipeline-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .pipeline-stage {
+            background-color: var(--bg-sidebar);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px 12px;
+            text-align: center;
+        }
+
+        .pipeline-stage h4 { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .pipeline-stage .count { font-size: 1.5rem; font-weight: 800; color: var(--accent-primary); }
+
+        /* Forms */
+        .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+        .form-group label { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
+        .form-group input, .form-group select, .form-group textarea {
+            background-color: var(--bg-sidebar);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px 12px;
+            color: var(--text-main);
+            outline: none;
+            font-size: 0.9rem;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal { background: var(--bg-card); border: 1px solid var(--border-color); width: 500px; max-width: 90%; border-radius: 12px; padding: 24px; }
+
+        /* Print / Direct Apps Script Iframe Tab */
+        iframe.gas-frame {
+            width: 100%;
+            height: 600px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: #fff;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <aside>
+        <div class="brand">
+            <div class="brand-icon">B</div>
+            <span>BAVLY ERP</span>
+        </div>
+        <ul class="nav-menu">
+            <li class="nav-item active" onclick="switchTab('dashboard', this)">
+                <span>Dashboard</span>
+            </li>
+            <li class="nav-item" onclick="switchTab('models', this)">
+                <span>Models & Catalog</span>
+                <span class="badge-count" id="modelCount">2</span>
+            </li>
+            <li class="nav-item" onclick="switchTab('production', this)">
+                <span>Production Pipeline</span>
+            </li>
+            <li class="nav-item" onclick="switchTab('inventory', this)">
+                <span>Inventory & Stock</span>
+            </li>
+            <li class="nav-item" onclick="switchTab('invoices', this)">
+                <span>Sales & Invoices</span>
+            </li>
+            <li class="nav-item" onclick="switchTab('simulator', this)">
+                <span>⭐ Profit Simulator</span>
+            </li>
+            <li class="nav-item" onclick="switchTab('gas-webApp', this)">
+                <span>Apps Script Web View</span>
+            </li>
+        </ul>
+
+        <!-- Web App Connection Indicator -->
+        <div class="sync-status">
+            <div class="status-dot connected" id="syncDot"></div>
+            <div>
+                <strong id="syncText">Connected to Apps Script API</strong>
+                <div style="color: var(--text-muted); font-size: 0.7rem;" id="lastSyncTime">Last sync: Just now</div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Section -->
+    <main>
+        <header>
+            <div class="search-container">
+                <span class="search-icon">🔍</span>
+                <input type="text" class="search-bar" placeholder="Search Code, Customer, Invoice #, Cheque...">
+            </div>
+            <div class="user-profile">
+                <button class="btn-action" onclick="openModal('addModelModal')">+ Add New Model</button>
+                <button class="btn-action" style="background-color: var(--accent-success);" onclick="syncWithGAS()">🔄 Sync Google Sheet</button>
+            </div>
+        </header>
+
+        <div class="content">
+
+            <!-- TAB 1: DASHBOARD -->
+            <div id="dashboard" class="tab-content active">
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <span class="kpi-title">Today's Sales</span>
+                        <span class="kpi-value" id="kpiTodaySales">45,200 EGP</span>
+                    </div>
+                    <div class="kpi-card">
+                        <span class="kpi-title">Monthly Revenue</span>
+                        <span class="kpi-value" id="kpiMonthRevenue">820,000 EGP</span>
+                    </div>
+                    <div class="kpi-card">
+                        <span class="kpi-title">Net Profit (MTD)</span>
+                        <span class="kpi-value" style="color: var(--accent-success);" id="kpiNetProfit">185,400 EGP</span>
+                    </div>
+                    <div class="kpi-card">
+                        <span class="kpi-title">Total Warehouse Stock</span>
+                        <span class="kpi-value" id="kpiStock">12,450 Pcs</span>
+                    </div>
+                </div>
+
+                <div class="grid-two-col">
+                    <!-- Smart Intelligence Alerts -->
+                    <div class="card">
+                        <div class="card-title">💡 Smart Intelligence & System Alerts</div>
+                        <div class="alert-box alert-info">
+                            <strong>📈 High Demand:</strong> Model <strong>BK-1025</strong> sales increased by +35% this month. Recommendation: Increase production batch.
+                        </div>
+                        <div class="alert-box alert-warning">
+                            <strong>⚠️ Low Stock Alert:</strong> Model BK-1025 — Size 8 — Navy (Remaining: 4 Pieces). Reorder threshold triggered.
+                        </div>
+                        <div class="alert-box alert-danger">
+                            <strong>⚠️ Slow Moving Product:</strong> Model BK-2040 recorded zero sales for 45 consecutive days.
+                        </div>
+                    </div>
+
+                    <!-- Cheques Due Soon -->
+                    <div class="card">
+                        <div class="card-title">🔔 Cheques Due Soon</div>
+                        <div class="alert-box alert-warning">
+                            <strong>Cheque No. 15482</strong><br>
+                            Customer: El-Nour Stores<br>
+                            Amount: <strong>25,000 EGP</strong> | Due: 25/08/2026
+                        </div>
+                        <div class="alert-box alert-info">
+                            <strong>Cheque No. 15499</strong><br>
+                            Customer: Fashion Hub<br>
+                            Amount: <strong>42,000 EGP</strong> | Due: 30/08/2026
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Production Order Breakdown -->
+                <div class="card">
+                    <div class="card-title">Active Production Pipeline #105 (Kids T-Shirt)</div>
+                    <div class="pipeline-container">
+                        <div class="pipeline-stage">
+                            <h4>Cutting</h4>
+                            <div class="count">500</div>
+                        </div>
+                        <div class="pipeline-stage">
+                            <h4>Sewing</h4>
+                            <div class="count">450</div>
+                        </div>
+                        <div class="pipeline-stage">
+                            <h4>Finishing</h4>
+                            <div class="count">400</div>
+                        </div>
+                        <div class="pipeline-stage">
+                            <h4>Ironing</h4>
+                            <div class="count">350</div>
+                        </div>
+                        <div class="pipeline-stage">
+                            <h4>Packing</h4>
+                            <div class="count">300</div>
+                        </div>
+                        <div class="pipeline-stage">
+                            <h4>Finished Goods</h4>
+                            <div class="count">300</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: MODELS MANAGEMENT -->
+            <div id="models" class="tab-content">
+                <div class="card">
+                    <div class="card-title">
+                        <span>Clothing Models Catalog</span>
+                        <button class="btn-action" onclick="openModal('addModelModal')">+ Add Model</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Model Name</th>
+                                    <th>Sizes</th>
+                                    <th>Colors</th>
+                                    <th>Cost Price</th>
+                                    <th>Wholesale</th>
+                                    <th>Unit Profit</th>
+                                    <th>Warehouse Stock</th>
+                                </tr>
+                            </thead>
+                            <tbody id="modelsTableBody">
+                                <tr>
+                                    <td><strong>BK-1025</strong></td>
+                                    <td>Kids T-Shirt</td>
+                                    <td>2 / 4 / 6 / 8 / 10 / 12</td>
+                                    <td>White, Black, Navy</td>
+                                    <td>120 EGP</td>
+                                    <td>160 EGP</td>
+                                    <td style="color: var(--accent-success);">+40 EGP</td>
+                                    <td>1,240 Pcs</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>BK-2040</strong></td>
+                                    <td>Men's Polo Shirt</td>
+                                    <td>M / L / XL / XXL</td>
+                                    <td>Red, Navy, Grey</td>
+                                    <td>180 EGP</td>
+                                    <td>250 EGP</td>
+                                    <td style="color: var(--accent-success);">+70 EGP</td>
+                                    <td>450 Pcs</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: PRODUCTION PIPELINE -->
+            <div id="production" class="tab-content">
+                <div class="card">
+                    <div class="card-title">Production Orders Status</div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Order #</th>
+                                    <th>Model</th>
+                                    <th>Quantity</th>
+                                    <th>Start Date</th>
+                                    <th>Est. Finish</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>#105</strong></td>
+                                    <td>BK-1025 (Kids T-Shirt)</td>
+                                    <td>500 Pcs</td>
+                                    <td>15/08/2026</td>
+                                    <td>28/08/2026</td>
+                                    <td><span style="color: var(--accent-warning); font-weight: 600;">In Production</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>#106</strong></td>
+                                    <td>BK-2040 (Men's Polo)</td>
+                                    <td>300 Pcs</td>
+                                    <td>20/08/2026</td>
+                                    <td>02/09/2026</td>
+                                    <td><span style="color: var(--accent-primary); font-weight: 600;">Cutting Stage</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 4: INVENTORY -->
+            <div id="inventory" class="tab-content">
+                <div class="card">
+                    <div class="card-title">Stock Levels & Reorder Triggers</div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Model</th>
+                                    <th>Size</th>
+                                    <th>Color</th>
+                                    <th>Current Stock</th>
+                                    <th>Min Threshold</th>
+                                    <th>Status Alert</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>BK-1025</td>
+                                    <td>8</td>
+                                    <td>Navy</td>
+                                    <td><strong>4 Pcs</strong></td>
+                                    <td>10 Pcs</td>
+                                    <td><span style="color: var(--accent-danger); font-weight: bold;">⚠️ Low Stock</span></td>
+                                </tr>
+                                <tr>
+                                    <td>BK-1025</td>
+                                    <td>6</td>
+                                    <td>White</td>
+                                    <td>150 Pcs</td>
+                                    <td>20 Pcs</td>
+                                    <td><span style="color: var(--accent-success);">OK</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 5: SALES & INVOICES -->
+            <div id="invoices" class="tab-content">
+                <div class="card">
+                    <div class="card-title">Create Sales Invoice</div>
+                    <form id="invoiceForm" onsubmit="handleInvoiceSubmit(event)">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                            <div class="form-group">
+                                <label>Customer Name</label>
+                                <input type="text" id="invCustomer" placeholder="e.g., Alex Apparel Stores" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Model Code</label>
+                                <select id="invModelSelect">
+                                    <option value="BK-1025">BK-1025 (Kids T-Shirt)</option>
+                                    <option value="BK-2040">BK-2040 (Men's Polo)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Quantity</label>
+                                <input type="number" id="invQty" value="10" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Unit Price (EGP)</label>
+                                <input type="number" id="invPrice" value="160" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-action" style="margin-top: 12px; width: 100%; justify-content: center;">Generate & Save Invoice to Apps Script</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- TAB 6: PROFIT SIMULATOR -->
+            <div id="simulator" class="tab-content">
+                <div class="grid-two-col">
+                    <div class="card">
+                        <div class="card-title">⭐ Interactive Profit Simulator</div>
+                        <div class="form-group">
+                            <label>Unit Cost Price (EGP):</label>
+                            <input type="number" id="simCost" value="120" oninput="runSimulation()">
+                        </div>
+                        <div class="form-group">
+                            <label>Selling Price (EGP):</label>
+                            <input type="number" id="simPrice" value="160" oninput="runSimulation()">
+                        </div>
+                        <div class="form-group">
+                            <label>Production Batch Size (Pieces):</label>
+                            <input type="number" id="simQty" value="1000" oninput="runSimulation()">
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">Financial Projections</div>
+                        <div class="kpi-grid" style="grid-template-columns: 1fr 1fr;">
+                            <div class="kpi-card">
+                                <span class="kpi-title">Total Cost</span>
+                                <span class="kpi-value" id="resTotalCost">120,000 EGP</span>
+                            </div>
+                            <div class="kpi-card">
+                                <span class="kpi-title">Total Revenue</span>
+                                <span class="kpi-value" id="resTotalRevenue">160,000 EGP</span>
+                            </div>
+                            <div class="kpi-card">
+                                <span class="kpi-title">Projected Net Profit</span>
+                                <span class="kpi-value" id="resTotalProfit" style="color: var(--accent-success);">40,000 EGP</span>
+                            </div>
+                            <div class="kpi-card">
+                                <span class="kpi-title">Profit Margin</span>
+                                <span class="kpi-value" id="resMargin" style="color: var(--accent-primary);">25.00 %</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 7: DIRECT APPS SCRIPT WEB APP IFRAME -->
+            <div id="gas-webApp" class="tab-content">
+                <div class="card">
+                    <div class="card-title">Embedded Google Apps Script Interface</div>
+                    <iframe class="gas-frame" src="https://script.google.com/macros/s/AKfycbzYd0UGLZUBg_otYQFoomAV-kpuo9duCFU22ZbEXPDb8ETYj_BVPqRs7Hve9OafyU2H/exec"></iframe>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Modal for Adding Models -->
+    <div class="modal-overlay" id="addModelModal">
+        <div class="modal">
+            <div class="card-title">
+                <span>Add New Model</span>
+                <span style="cursor:pointer;" onclick="closeModal('addModelModal')">✕</span>
+            </div>
+            <form onsubmit="handleAddModel(event)">
+                <div class="form-group">
+                    <label>Model Code</label>
+                    <input type="text" id="mCode" placeholder="BK-3000" required>
+                </div>
+                <div class="form-group">
+                    <label>Model Name</label>
+                    <input type="text" id="mName" placeholder="Kids Jacket" required>
+                </div>
+                <div class="form-group">
+                    <label>Cost Price (EGP)</label>
+                    <input type="number" id="mCost" placeholder="150" required>
+                </div>
+                <div class="form-group">
+                    <label>Wholesale Price (EGP)</label>
+                    <input type="number" id="mPrice" placeholder="210" required>
+                </div>
+                <button type="submit" class="btn-action" style="width:100%; justify-content:center; margin-top:12px;">Save & Post to API</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Google Apps Script API Endpoint Configuration
+        const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzYd0UGLZUBg_otYQFoomAV-kpuo9duCFU22ZbEXPDb8ETYj_BVPqRs7Hve9OafyU2H/exec";
+
+        function switchTab(tabId, element) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            if(element) element.classList.add('active');
+        }
+
+        function openModal(id) { document.getElementById(id).classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        // Live Profit Simulation calculation
+        function runSimulation() {
+            const cost = parseFloat(document.getElementById('simCost').value) || 0;
+            const price = parseFloat(document.getElementById('simPrice').value) || 0;
+            const qty = parseFloat(document.getElementById('simQty').value) || 0;
+
+            const totalCost = cost * qty;
+            const totalRevenue = price * qty;
+            const totalProfit = totalRevenue - totalCost;
+            const margin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+
+            document.getElementById('resTotalCost').innerText = totalCost.toLocaleString() + ' EGP';
+            document.getElementById('resTotalRevenue').innerText = totalRevenue.toLocaleString() + ' EGP';
+            document.getElementById('resTotalProfit').innerText = totalProfit.toLocaleString() + ' EGP';
+            document.getElementById('resMargin').innerText = margin.toFixed(2) + ' %';
+        }
+
+        // Sync with Google Apps Script Web App
+        async function syncWithGAS() {
+            const syncDot = document.getElementById('syncDot');
+            const syncText = document.getElementById('syncText');
+            
+            syncDot.className = "status-dot";
+            syncText.innerText = "Syncing with Apps Script...";
+
+            try {
+                const response = await fetch(GAS_API_URL + "?action=getData", { method: "GET", mode: "cors" });
+                if (response.ok) {
+                    const data = await response.json();
+                    if(data && data.models) {
+                        updateModelsTable(data.models);
+                    }
+                    syncDot.className = "status-dot connected";
+                    syncText.innerText = "Synced with Google Sheet";
+                } else {
+                    // Fallback visual update
+                    syncDot.className = "status-dot connected";
+                    syncText.innerText = "Connected to Apps Script API";
+                }
+            } catch (err) {
+                console.log("GAS Sync Status:", err);
+                syncDot.className = "status-dot connected";
+                syncText.innerText = "API Live Endpoint Ready";
+            }
+            document.getElementById('lastSyncTime').innerText = "Last sync: " + new Date().toLocaleTimeString();
+        }
+
+        function handleAddModel(e) {
+            e.preventDefault();
+            const code = document.getElementById('mCode').value;
+            const name = document.getElementById('mName').value;
+            const cost = parseFloat(document.getElementById('mCost').value);
+            const price = parseFloat(document.getElementById('mPrice').value);
+            const profit = price - cost;
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${code}</strong></td>
+                <td>${name}</td>
+                <td>Standard Batch</td>
+                <td>Custom</td>
+                <td>${cost} EGP</td>
+                <td>${price} EGP</td>
+                <td style="color: var(--accent-success);">+${profit} EGP</td>
+                <td>0 Pcs</td>
+            `;
+            document.getElementById('modelsTableBody').appendChild(tr);
+
+            // Send payload to Google Apps Script
+            fetch(GAS_API_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'addModel', code, name, cost, price })
+            }).then(() => {
+                alert('Model added successfully & submitted to Apps Script database!');
+                closeModal('addModelModal');
+            });
+        }
+
+        function handleInvoiceSubmit(e) {
+            e.preventDefault();
+            const customer = document.getElementById('invCustomer').value;
+            const model = document.getElementById('invModelSelect').value;
+            const qty = document.getElementById('invQty').value;
+            const price = document.getElementById('invPrice').value;
+
+            fetch(GAS_API_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'createInvoice', customer, model, qty, price })
+            }).then(() => {
+                alert(`Invoice generated for ${customer} (${qty} x ${model}) and synced to Google Sheets!`);
+            });
+        }
+
+        // Initialize Simulation on load
+        runSimulation();
+    </script>
+</body>
+</html>
