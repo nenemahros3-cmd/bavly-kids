@@ -1,135 +1,74 @@
-const SPREADSHEET_ID = "1kOlsqbRc3rllLcMx-SN0bme5OtrnJacKpKA84YyLPDU";
-
-const DATABASE_SCHEMA = {
-  "Users": ["User ID", "Username", "Password Hashing", "Role", "Created At"],
-  "Models": ["Model Code", "Model Name", "Category", "Season", "Fabric", "Cost Price", "Wholesale Price", "Suggested Price", "Profit Margin", "Minimum Stock"],
-  "ProductVariants": ["Variant ID", "Model Code", "Color", "Size", "Current Stock"],
-  "Materials": ["Material Code", "Name", "Category", "Unit", "Quantity", "Unit Cost", "Minimum Stock"],
-  "Inventory": ["Transaction ID", "Model Code", "Color", "Size", "Type", "Quantity", "Reason", "Date"],
-  "Customers": ["Customer ID", "Name", "Phone", "Address", "Governorate", "Shop Name", "Total Purchases", "Paid Amount", "Remaining Balance"],
-  "Suppliers": ["Supplier ID", "Name", "Phone", "Address", "Materials Supplied", "Total Purchases", "Paid Amount", "Remaining Balance"],
-  "SalesInvoices": ["Invoice Number", "Date", "Customer Name", "Total Amount", "Discount", "Net Amount", "Paid Amount", "Remaining Balance", "Payment Method", "Employee"],
-  "SalesItems": ["Item ID", "Invoice Number", "Model Code", "Color", "Size", "Quantity", "Unit Price", "Subtotal"],
-  "PurchaseInvoices": ["Invoice Number", "Date", "Supplier Name", "Total Amount", "Paid Amount", "Remaining Balance", "Payment Method"],
-  "Cheques": ["Cheque Number", "Bank Name", "Customer Name", "Amount", "Issue Date", "Due Date", "Status"],
-  "ProductionOrders": ["Order Number", "Model Code", "Color", "Target Quantity", "Stage", "Status", "Start Date", "Expected Date"],
-  "Expenses": ["Expense ID", "Date", "Category", "Amount", "Notes", "Employee"],
-  "ActivityLogs": ["Log ID", "Timestamp", "User", "Action", "Details"]
-};
-
-// دالة إنشاء الجداول تلقائياً
-function setupDatabase() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  Object.keys(DATABASE_SCHEMA).forEach(sheetName => {
-    let sheet = ss.getSheetByName(sheetName);
-    if (!sheet) sheet = ss.insertSheet(sheetName);
-    if (sheet.getLastRow() === 0) {
-      const headers = DATABASE_SCHEMA[sheetName];
-      sheet.appendRow(headers);
-      const headerRange = sheet.getRange(1, 1, 1, headers.length);
-      headerRange.setBackground("#1e293b").setFontColor("#ffffff").setFontWeight("bold").setHorizontalAlignment("center");
-      sheet.setFrozenRows(1);
-    }
-  });
-  Logger.log("✅ تم تجهيز قاعدة البيانات بنجاح!");
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('Index')
+      .setTitle('نظام BAVLY لإدارة المصنع')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
-// استقبال طلبات القراءة (GET)
-function doGet(e) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const action = e.parameter.action;
-  
-  try {
-    if (action === "getDashboard") {
-      return responseJSON({ status: "success", data: getDashboardData(ss) });
-    }
-    if (action === "getTable") {
-      const sheetName = e.parameter.sheet;
-      return responseJSON({ status: "success", data: getSheetDataAsJSON(ss, sheetName) });
-    }
-    return responseJSON({ status: "error", message: "إجراء غير معروف" });
-  } catch (err) {
-    return responseJSON({ status: "error", message: err.toString() });
-  }
+// جلب كل البيانات دفعة واحدة عند فتح البرنامج
+function getInitialData() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  return {
+    models: getSheetData(ss, "Models", ["كود الموديل", "اسم الموديل", "القسم", "الخامة", "التكلفة", "سعر البيع"]),
+    customers: getSheetData(ss, "Customers", ["كود العميل", "اسم العميل", "الهاتف", "المحافظة", "إجمالي المشتريات", "المتبقي"]),
+    materials: getSheetData(ss, "Materials", ["كود الخامة", "اسم الخامة", "الوحدة", "الكمية الحالية"]),
+    invoices: getSheetData(ss, "SalesInvoices", ["رقم الفاتورة", "التاريخ", "اسم العميل", "الإجمالي", "الخصم", "الصافي", "طريقة الدفع"])
+  };
 }
 
-// استقبال طلبات الكتابة والحفظ (POST) - بحل مشكلة CORS
-function doPost(e) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  try {
-    const contents = JSON.parse(e.postData.contents);
-    const action = contents.action;
-
-    // حفظ عنصر واحد
-    if (action === "addRecord") {
-      const sheet = ss.getSheetByName(contents.sheet);
-      sheet.appendRow(contents.data);
-      return responseJSON({ status: "success", message: "تم الحفظ بنجاح" });
-    }
-
-    // حفظ الفاتورة بالكامل دفعة واحدة (حتى لو فيها 500+ موديل)
-    if (action === "addInvoiceWithItems") {
-      const invSheet = ss.getSheetByName("SalesInvoices");
-      invSheet.appendRow(contents.invoiceHeader);
-
-      const itemsSheet = ss.getSheetByName("SalesItems");
-      if (contents.invoiceItems && contents.invoiceItems.length > 0) {
-        const rows = contents.invoiceItems.map((item, idx) => [
-          "ITEM-" + Date.now() + "-" + idx,
-          contents.invoiceHeader[0], // رقم الفاتورة
-          item.model,
-          item.color || "",
-          item.size || "",
-          Number(item.qty) || 1,
-          Number(item.price) || 0,
-          (Number(item.qty) || 1) * (Number(item.price) || 0)
-        ]);
-        itemsSheet.getRange(itemsSheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
-      }
-      return responseJSON({ status: "success", message: "تم حفظ الفاتورة وجميع عناصرها بنجاح!" });
-    }
-
-    return responseJSON({ status: "error", message: "إجراء غير معروف" });
-  } catch (err) {
-    return responseJSON({ status: "error", message: err.toString() });
-  }
-}
-
-function getSheetDataAsJSON(ss, sheetName) {
-  const sheet = ss.getSheetByName(sheetName);
-  if (!sheet) return [];
-  const data = sheet.getDataRange().getValues();
+function getSheetData(ss, sheetName, defaultHeaders) {
+  var sheet = getOrCreateSheet(ss, sheetName, defaultHeaders);
+  var data = sheet.getDataRange().getValues();
   if (data.length <= 1) return [];
-  const headers = data[0];
-  return data.slice(1).map(row => {
-    let obj = {};
-    headers.forEach((h, i) => obj[h] = row[i]);
+  var headers = data[0];
+  return data.slice(1).map(function(row) {
+    var obj = {};
+    headers.forEach(function(h, i) { obj[h] = row[i]; });
     return obj;
   });
 }
 
-function getDashboardData(ss) {
-  const salesSheet = ss.getSheetByName("SalesInvoices");
-  const salesData = salesSheet.getDataRange().getValues();
-  let todaySales = 0;
-  const today = new Date().toISOString().split('T')[0];
+// حفظ الفاتورة بالكامل في صفحة المبيعات وصفحة العناصر
+function saveInvoice(invoiceHeader, invoiceItems) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var invSheet = getOrCreateSheet(ss, "SalesInvoices", ["رقم الفاتورة", "التاريخ", "اسم العميل", "الإجمالي", "الخصم", "الصافي", "طريقة الدفع"]);
+  var itemsSheet = getOrCreateSheet(ss, "SalesItems", ["ID", "رقم الفاتورة", "الموديل", "اللون", "المقاس", "الكمية", "السعر", "الإجمالي"]);
 
-  for (let i = 1; i < salesData.length; i++) {
-    if (salesData[i][1]) {
-      const rowDate = new Date(salesData[i][1]).toISOString().split('T')[0];
-      if (rowDate === today) todaySales += Number(salesData[i][5]) || 0;
-    }
+  invSheet.appendRow(invoiceHeader);
+
+  if (invoiceItems && invoiceItems.length > 0) {
+    var rows = invoiceItems.map(function(item, idx) {
+      return [
+        "ITEM-" + Date.now() + "-" + idx,
+        invoiceHeader[0],
+        item.model,
+        item.color || "",
+        item.size || "",
+        Number(item.qty) || 1,
+        Number(item.price) || 0,
+        (Number(item.qty) || 1) * (Number(item.price) || 0)
+      ];
+    });
+    itemsSheet.getRange(itemsSheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
   }
-
-  return {
-    todaySales: todaySales,
-    totalModels: Math.max(0, ss.getSheetByName("Models").getLastRow() - 1),
-    totalCustomers: Math.max(0, ss.getSheetByName("Customers").getLastRow() - 1),
-    activeOrders: Math.max(0, ss.getSheetByName("ProductionOrders").getLastRow() - 1)
-  };
+  return { success: true, message: "تم حفظ الفاتورة بنجاح!" };
 }
 
-function responseJSON(data) {
-  return ContentService.createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
+// حفظ عنصر جديد (موديل / عميل / خامة)
+function saveSingleRecord(sheetName, headers, rowData) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getOrCreateSheet(ss, sheetName, headers);
+  sheet.appendRow(rowData);
+  return { success: true, message: "تم الحفظ بنجاح!" };
+}
+
+function getOrCreateSheet(ss, sheetName, headers) {
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+    sheet.appendRow(headers);
+    sheet.getRange(1, 1, 1, headers.length).setBackground("#1e293b").setFontColor("#ffffff").setFontWeight("bold");
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
 }
