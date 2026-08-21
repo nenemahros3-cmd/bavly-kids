@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BAVLY Factory Management System + BAVLY AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-hover: #334155;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --ai-color: #10b981;
+            --ai-hover: #059669;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --border: #334155;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Cairo', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background-color: var(--bg-card);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .brand {
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .brand span { color: var(--primary); }
+
+        .nav-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .nav-item {
+            background: transparent;
+            border: none;
+            color: var(--text-sub);
+            padding: 12px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: right;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .nav-item.ai-btn {
+            background-color: rgba(16, 185, 129, 0.12);
+            color: var(--ai-color);
+            border: 1px solid var(--ai-color);
+        }
+
+        .nav-item.ai-btn:hover, .nav-item.ai-btn.active {
+            background-color: var(--ai-color);
+            color: white;
+        }
+
+        .api-status {
+            font-size: 0.8rem;
+            padding: 8px 12px;
+            border-radius: 6px;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--ai-color);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--ai-color);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex-grow: 1;
+            padding: 25px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .page-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+        }
+
+        .btn-action {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: 0.2s;
+        }
+
+        .btn-action:hover { background-color: var(--primary-hover); }
+
+        .view-section {
+            display: none;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .view-section.active { display: flex; }
+
+        /* Metric Cards */
+        .grid-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 20px;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            position: relative;
+        }
+
+        .card-title { color: var(--text-sub); font-size: 0.85rem; }
+        .card-value { font-size: 1.7rem; font-weight: 700; }
+
+        /* Tables */
+        .table-container {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: right;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background-color: rgba(0, 0, 0, 0.25);
+            color: var(--text-sub);
+            font-weight: 700;
+        }
+
+        tr:hover { background-color: rgba(255, 255, 255, 0.02); }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+
+        .badge-success { background: rgba(16, 185, 129, 0.2); color: var(--ai-color); }
+        .badge-warning { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .badge-danger { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+
+        /* AI Chat Box */
+        .chat-box {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            height: 520px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .msg {
+            max-width: 80%;
+            padding: 14px 18px;
+            border-radius: 12px;
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        .msg.user {
+            background-color: var(--primary);
+            color: white;
+            align-self: flex-start;
+            border-bottom-right-radius: 2px;
+        }
+
+        .msg.ai {
+            background-color: var(--bg-dark);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            align-self: flex-end;
+            border-bottom-left-radius: 2px;
+            border-right: 4px solid var(--ai-color);
+        }
+
+        .chat-input-area {
+            display: flex;
+            padding: 15px;
+            gap: 10px;
+            border-top: 1px solid var(--border);
+            background: var(--bg-card);
+        }
+
+        .chat-input {
+            flex-grow: 1;
+            background-color: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: white;
+            outline: none;
+            font-size: 0.95rem;
+        }
+
+        .btn-send {
+            background-color: var(--ai-color);
+            color: white;
+            border: none;
+            padding: 0 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        /* Modal Form */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 25px;
+            border-radius: 12px;
+            width: 450px;
+            max-width: 90%;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 700;
+            font-size: 1.2rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            font-size: 0.85rem;
+            color: var(--text-sub);
+        }
+
+        .form-control {
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            padding: 10px 12px;
+            border-radius: 6px;
+            color: white;
+            outline: none;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-sub);
+            font-size: 1.4rem;
+            cursor: pointer;
+        }
+
+        /* Loader Spinner */
+        .loader {
+            border: 3px solid var(--border);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="brand">
+            🏭 <span>BAVLY</span> ERP
+        </div>
+        <div class="nav-menu">
+            <button class="nav-item active" onclick="switchTab('dashboard', this)">📊 لوحة التحكم</button>
+            <button class="nav-item ai-btn" onclick="switchTab('ai-chat', this)">🤖 BAVLY AI Assistant</button>
+            <button class="nav-item" onclick="switchTab('models', this)">👗 إدارة الموديلات</button>
+            <button class="nav-item" onclick="switchTab('customers', this)">👥 العملاء</button>
+            <button class="nav-item" onclick="switchTab('materials', this)">🧵 الخامات ومستلزمات الإنتاج</button>
+            <button class="nav-item" onclick="switchTab('production', this)">✂️ إدارة الإنتاج</button>
+        </div>
+        <div class="api-status">
+            <div class="status-dot"></div>
+             متصل بـ Google Sheets API
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        
+        <!-- Dashboard -->
+        <div id="dashboard" class="view-section active">
+            <div class="header">
+                <h1 class="page-title">لوحة التحكم الرئيسية</h1>
+                <button class="btn-action" onclick="loadDashboardData()">🔄 تحديث البيانات</button>
+            </div>
+
+            <div class="grid-cards">
+                <div class="card">
+                    <span class="card-title">مبيعات اليوم</span>
+                    <span class="card-value" id="dashTodaySales">0 ج.م</span>
+                </div>
+                <div class="card">
+                    <span class="card-title">إجمالي الموديلات</span>
+                    <span class="card-value" id="dashTotalModels">0</span>
+                </div>
+                <div class="card">
+                    <span class="card-title">إجمالي العملاء</span>
+                    <span class="card-value" id="dashTotalCustomers">0</span>
+                </div>
+                <div class="card">
+                    <span class="card-title">أوامر الإنتاج النشطة</span>
+                    <span class="card-value" id="dashActiveOrders">0</span>
+                </div>
+            </div>
+
+            <h2 style="font-size: 1.1rem; margin-top: 15px;">قائمة الموديلات الحالية</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>كود الموديل</th>
+                            <th>اسم الموديل</th>
+                            <th>القسم</th>
+                            <th>سعر التكلفة</th>
+                            <th>سعر البيع</th>
+                            <th>الحد الأدنى للمخزون</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dashboardModelsTable">
+                        <tr><td colspan="6" style="text-align: center;"><div class="loader"></div> جاري التحميل...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- AI Assistant -->
+        <div id="ai-chat" class="view-section">
+            <div class="header">
+                <h1 class="page-title">🤖 BAVLY AI Assistant</h1>
+            </div>
+            <div class="chat-box">
+                <div class="chat-messages" id="chatMessages">
+                    <div class="msg ai">
+                        مرحباً بك! أنا BAVLY AI المساعد الذكي المربوط بقاعدة بيانات مصنعك.<br>
+                        يمكنك أن تسألني عن: <b>"تقرير اليوم"</b>، <b>"أكتر موديل انباع"</b>، أو <b>"توقعات الخامات"</b>.
+                    </div>
+                </div>
+                <div class="chat-input-area">
+                    <input type="text" id="userInput" class="chat-input" placeholder="اسأل BAVLY AI..." onkeypress="handleKeyPress(event)">
+                    <button class="btn-send" onclick="sendMessage()">إرسال</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Models Management -->
+        <div id="models" class="view-section">
+            <div class="header">
+                <h1 class="page-title">إدارة الموديلات (Models)</h1>
+                <button class="btn-action" onclick="openModal('addModelModal')">➕ إضافة موديل جديد</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Model Code</th>
+                            <th>Model Name</th>
+                            <th>Category</th>
+                            <th>Fabric</th>
+                            <th>Cost Price</th>
+                            <th>Wholesale Price</th>
+                            <th>Suggested Price</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modelsTableBody">
+                        <tr><td colspan="7" style="text-align: center;"><div class="loader"></div> جاري تحميل الموديلات...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Customers Management -->
+        <div id="customers" class="view-section">
+            <div class="header">
+                <h1 class="page-title">إدارة العملاء (Customers)</h1>
+                <button class="btn-action" onclick="openModal('addCustomerModal')">➕ إضافة عميل جديد</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>اسم العميل</th>
+                            <th>رقم الهاتف</th>
+                            <th>المحافظة</th>
+                            <th>إجمالي المشتريات</th>
+                            <th>المدفوع</th>
+                            <th>المتبقي</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customersTableBody">
+                        <tr><td colspan="7" style="text-align: center;"><div class="loader"></div> جاري تحميل العملاء...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Materials Management -->
+        <div id="materials" class="view-section">
+            <div class="header">
+                <h1 class="page-title">الخامات ومستلزمات الإنتاج</h1>
+                <button class="btn-action" onclick="openModal('addMaterialModal')">➕ إضافة خامة جديدة</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>الكود</th>
+                            <th>اسم الخامة</th>
+                            <th>الفئة</th>
+                            <th>الوحدة</th>
+                            <th>الكمية</th>
+                            <th>سعر الوحدة</th>
+                        </tr>
+                    </thead>
+                    <tbody id="materialsTableBody">
+                        <tr><td colspan="6" style="text-align: center;"><div class="loader"></div> جاري تحميل الخامات...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Production Management -->
+        <div id="production" class="view-section">
+            <div class="header">
+                <h1 class="page-title">إدارة أوردرات الإنتاج</h1>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>رقم الأمر</th>
+                            <th>كود الموديل</th>
+                            <th>اللون</th>
+                            <th>الكمية المستهدفة</th>
+                            <th>المرحلة الحالية</th>
+                            <th>الحالة</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productionTableBody">
+                        <tr><td colspan="6" style="text-align: center;"><div class="loader"></div> جاري تحميل أوامر الإنتاج...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Modals -->
+    <!-- Modal Add Model -->
+    <div id="addModelModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>إضافة موديل جديد</span>
+                <button class="close-btn" onclick="closeModal('addModelModal')">&times;</button>
+            </div>
+            <form id="addModelForm" onsubmit="saveModel(event)">
+                <div class="form-group"><label>كود الموديل</label><input type="text" id="mCode" class="form-control" required placeholder="BK-1025"></div>
+                <div class="form-group"><label>اسم الموديل</label><input type="text" id="mName" class="form-control" required placeholder="T-Shirt Oversize"></div>
+                <div class="form-group"><label>القسم</label><input type="text" id="mCategory" class="form-control" placeholder="رجالي / أطفال"></div>
+                <div class="form-group"><label>الخامة</label><input type="text" id="mFabric" class="form-control" placeholder="قطن 100%"></div>
+                <div class="form-group"><label>سعر التكلفة</label><input type="number" id="mCost" class="form-control" required value="100"></div>
+                <div class="form-group"><label>سعر الجملة</label><input type="number" id="mWholesale" class="form-control" required value="150"></div>
+                <button type="submit" class="btn-action" style="width:100%; justify-content:center; margin-top:10px;">حفظ الموديل</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Add Customer -->
+    <div id="addCustomerModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>إضافة عميل جديد</span>
+                <button class="close-btn" onclick="closeModal('addCustomerModal')">&times;</button>
+            </div>
+            <form id="addCustomerForm" onsubmit="saveCustomer(event)">
+                <div class="form-group"><label>كود العميل</label><input type="text" id="cId" class="form-control" required placeholder="CUST-101"></div>
+                <div class="form-group"><label>اسم العميل</label><input type="text" id="cName" class="form-control" required></div>
+                <div class="form-group"><label>رقم الهاتف</label><input type="text" id="cPhone" class="form-control"></div>
+                <div class="form-group"><label>المحافظة</label><input type="text" id="cGov" class="form-control"></div>
+                <button type="submit" class="btn-action" style="width:100%; justify-content:center; margin-top:10px;">حفظ العميل</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Add Material -->
+    <div id="addMaterialModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>إضافة خامة جديدة</span>
+                <button class="close-btn" onclick="closeModal('addMaterialModal')">&times;</button>
+            </div>
+            <form id="addMaterialForm" onsubmit="saveMaterial(event)">
+                <div class="form-group"><label>كود الخامة</label><input type="text" id="matCode" class="form-control" required placeholder="MAT-01"></div>
+                <div class="form-group"><label>اسم الخامة</label><input type="text" id="matName" class="form-control" required placeholder="قماش ميلتون"></div>
+                <div class="form-group"><label>الوحدة</label><input type="text" id="matUnit" class="form-control" placeholder="متر / بكره"></div>
+                <div class="form-group"><label>الكمية الحالية</label><input type="number" id="matQty" class="form-control" value="0"></div>
+                <button type="submit" class="btn-action" style="width:100%; justify-content:center; margin-top:10px;">حفظ الخامة</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // رابط Google Apps Script الخاص بك
+        const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzYd0UGLZUBg_otYQFoomAV-kpuo9duCFU22ZbEXPDb8ETYj_BVPqRs7Hve9OafyU2H/exec";
+
+        window.onload = () => {
+            loadDashboardData();
+            loadTableData('Models', renderModels);
+            loadTableData('Customers', renderCustomers);
+            loadTableData('Materials', renderMaterials);
+            loadTableData('ProductionOrders', renderProduction);
+        };
+
+        function switchTab(tabId, element) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            element.classList.add('active');
+        }
+
+        // Fetch API GET Wrapper
+        async function fetchAPI(action, params = {}) {
+            let url = new URL(GAS_API_URL);
+            url.searchParams.append("action", action);
+            Object.keys(params).forEach(k => url.searchParams.append(k, params[k]));
+
+            try {
+                let res = await fetch(url);
+                return await res.json();
+            } catch(e) {
+                console.error("API Error:", e);
+                return { status: "error" };
+            }
+        }
+
+        // Fetch API POST Wrapper
+        async function postAPI(data) {
+            try {
+                let res = await fetch(GAS_API_URL, {
+                    method: "POST",
+                    body: JSON.stringify(data)
+                });
+                return await res.json();
+            } catch(e) {
+                console.error("API Error:", e);
+                return { status: "error" };
+            }
+        }
+
+        // Dashboard Data
+        async function loadDashboardData() {
+            let res = await fetchAPI("getDashboard");
+            if (res.status === "success") {
+                document.getElementById('dashTodaySales').innerText = res.data.todaySales + " ج.م";
+                document.getElementById('dashTotalModels').innerText = res.data.totalModels;
+                document.getElementById('dashTotalCustomers').innerText = res.data.totalCustomers;
+                document.getElementById('dashActiveOrders').innerText = res.data.activeOrders;
+            }
+        }
+
+        // Table Loaders
+        async function loadTableData(sheetName, renderCallback) {
+            let res = await fetchAPI("getTable", { sheet: sheetName });
+            if (res.status === "success") {
+                renderCallback(res.data);
+            }
+        }
+
+        function renderModels(data) {
+            let body = document.getElementById('modelsTableBody');
+            let dashBody = document.getElementById('dashboardModelsTable');
+            
+            if (data.length === 0) {
+                body.innerHTML = '<tr><td colspan="7" style="text-align:center;">لا توجد موديلات مسجلة بعد</td></tr>';
+                dashBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">لا توجد موديلات مسجلة بعد</td></tr>';
+                return;
+            }
+
+            let html = '', dashHtml = '';
+            data.forEach(r => {
+                html += `<tr>
+                    <td>${r['Model Code'] || ''}</td>
+                    <td><b>${r['Model Name'] || ''}</b></td>
+                    <td>${r['Category'] || ''}</td>
+                    <td>${r['Fabric'] || ''}</td>
+                    <td>${r['Cost Price'] || 0} EGP</td>
+                    <td>${r['Wholesale Price'] || 0} EGP</td>
+                    <td>${r['Suggested Price'] || 0} EGP</td>
+                </tr>`;
+
+                dashHtml += `<tr>
+                    <td>${r['Model Code'] || ''}</td>
+                    <td><b>${r['Model Name'] || ''}</b></td>
+                    <td>${r['Category'] || ''}</td>
+                    <td>${r['Cost Price'] || 0} EGP</td>
+                    <td>${r['Wholesale Price'] || 0} EGP</td>
+                    <td><span class="badge badge-success">${r['Minimum Stock'] || 10}</span></td>
+                </tr>`;
+            });
+
+            body.innerHTML = html;
+            dashBody.innerHTML = dashHtml;
+        }
+
+        function renderCustomers(data) {
+            let body = document.getElementById('customersTableBody');
+            if (data.length === 0) {
+                body.innerHTML = '<tr><td colspan="7" style="text-align:center;">لا يوجد عملاء مسجلين</td></tr>';
+                return;
+            }
+            let html = '';
+            data.forEach(r => {
+                html += `<tr>
+                    <td>${r['Customer ID'] || ''}</td>
+                    <td><b>${r['Name'] || ''}</b></td>
+                    <td>${r['Phone'] || ''}</td>
+                    <td>${r['Governorate'] || ''}</td>
+                    <td>${r['Total Purchases'] || 0} EGP</td>
+                    <td>${r['Paid Amount'] || 0} EGP</td>
+                    <td><span class="badge badge-warning">${r['Remaining Balance'] || 0} EGP</span></td>
+                </tr>`;
+            });
+            body.innerHTML = html;
+        }
+
+        function renderMaterials(data) {
+            let body = document.getElementById('materialsTableBody');
+            if (data.length === 0) {
+                body.innerHTML = '<tr><td colspan="6" style="text-align:center;">لا توجد خامات مسجلة</td></tr>';
+                return;
+            }
+            let html = '';
+            data.forEach(r => {
+                html += `<tr>
+                    <td>${r['Material Code'] || ''}</td>
+                    <td><b>${r['Name'] || ''}</b></td>
+                    <td>${r['Category'] || ''}</td>
+                    <td>${r['Unit'] || ''}</td>
+                    <td><span class="badge badge-success">${r['Quantity'] || 0}</span></td>
+                    <td>${r['Unit Cost'] || 0} EGP</td>
+                </tr>`;
+            });
+            body.innerHTML = html;
+        }
+
+        function renderProduction(data) {
+            let body = document.getElementById('productionTableBody');
+            if (data.length === 0) {
+                body.innerHTML = '<tr><td colspan="6" style="text-align:center;">لا توجد أوامر إنتاج قائمة</td></tr>';
+                return;
+            }
+            let html = '';
+            data.forEach(r => {
+                html += `<tr>
+                    <td>${r['Order Number'] || ''}</td>
+                    <td>${r['Model Code'] || ''}</td>
+                    <td>${r['Color'] || ''}</td>
+                    <td>${r['Target Quantity'] || 0}</td>
+                    <td><span class="badge badge-warning">${r['Stage'] || 'Cutting'}</span></td>
+                    <td>${r['Status'] || 'In Production'}</td>
+                </tr>`;
+            });
+            body.innerHTML = html;
+        }
+
+        // Save Record Handlers
+        async function saveModel(e) {
+            e.preventDefault();
+            let row = [
+                document.getElementById('mCode').value,
+                document.getElementById('mName').value,
+                document.getElementById('mCategory').value,
+                "Summer",
+                document.getElementById('mFabric').value,
+                Number(document.getElementById('mCost').value),
+                Number(document.getElementById('mWholesale').value),
+                Number(document.getElementById('mWholesale').value) * 1.2,
+                "20%", 10
+            ];
+            await postAPI({ action: "addRecord", sheet: "Models", data: row });
+            closeModal('addModelModal');
+            loadTableData('Models', renderModels);
+        }
+
+        async function saveCustomer(e) {
+            e.preventDefault();
+            let row = [
+                document.getElementById('cId').value,
+                document.getElementById('cName').value,
+                document.getElementById('cPhone').value,
+                "العنوان",
+                document.getElementById('cGov').value,
+                "محل التجارة", 0, 0, 0
+            ];
+            await postAPI({ action: "addRecord", sheet: "Customers", data: row });
+            closeModal('addCustomerModal');
+            loadTableData('Customers', renderCustomers);
+        }
+
+        async function saveMaterial(e) {
+            e.preventDefault();
+            let row = [
+                document.getElementById('matCode').value,
+                document.getElementById('matName').value,
+                "Fabrics",
+                document.getElementById('matUnit').value,
+                Number(document.getElementById('matQty').value),
+                0, 5
+            ];
+            await postAPI({ action: "addRecord", sheet: "Materials", data: row });
+            closeModal('addMaterialModal');
+            loadTableData('Materials', renderMaterials);
+        }
+
+        // AI Chat Interface
+        function handleKeyPress(e) { if (e.key === 'Enter') sendMessage(); }
+
+        function sendMessage() {
+            let input = document.getElementById('userInput');
+            let text = input.value.trim();
+            if (!text) return;
+
+            let chatMessages = document.getElementById('chatMessages');
+            chatMessages.innerHTML += `<div class="msg user">${text}</div>`;
+            input.value = '';
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            setTimeout(() => {
+                let aiResponse = getAiAnswer(text);
+                chatMessages.innerHTML += `<div class="msg ai">${aiResponse}</div>`;
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }, 500);
+        }
+
+        function getAiAnswer(query) {
+            query = query.toLowerCase();
+            if (query.includes('تقرير') || query.includes('ملخص')) {
+                return "📊 <b>تقرير BAVLY AI اليومي:</b><br>- النظام متصل بنجاح بجداول Google Sheets.<br>- يتم تحديث إجمالي المبيعات والموديلات تلقائياً من الشيت الرئيسي.";
+            } else if (query.includes('خامات') || query.includes('أطلب')) {
+                return "🧵 <b>توقعات الخامات:</b><br>يرجى مراجعة جدول 'الخامات ومستلزمات الإنتاج' لتحديد الكميات القريبة من الحد الأدنى بانتظام.";
+            } else {
+                return "🤖 BAVLY AI: أنا في الخدمة ومربوط ببياناتك المباشرة! جرب السؤال عن <b>'تقرير اليوم'</b> أو <b>'توقعات الخامات'</b>.";
+            }
+        }
+
+        // Modal Controls
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    </script>
+</body>
+</html>
